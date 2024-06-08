@@ -1,0 +1,60 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © arifnurdiansyah92
+
+//@version=5
+strategy("Breakout Strategy", overlay=true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 70, commission_type = strategy.commission.percent, commission_value = 0.01)
+
+input_price_breakout_period = input.int(60, "Price Breakout Period")
+input_volume_breakout_period = input.int(60, "Volume Breakout Period")
+input_trendline_legnth = input.int(200, "Trendline Length")
+input_order_direction = input.string("Long", options = ["Long", "Short", "Long and Short"], title = "Order Direction")
+enable_sl = input.bool(true, "Enable SL")
+input_sl = input.float(5, "Stop Loss Percentage", step=0.1) // Stop Loss Percentage
+enable_tp = input.bool(true, "Enable TP")
+input_tp = input.float(10, "Take Profit Percentage", step=0.1) // Take Profit Percentage
+
+price_highest = ta.highest(input_price_breakout_period)
+price_lowest = ta.lowest(input_price_breakout_period)
+volume_highest = ta.highest(volume, input_volume_breakout_period)
+
+var float long_sl = na
+var float long_tp = na
+var float short_sl = na
+var float short_tp = na
+
+// Long Orders
+if close > price_highest[1] and volume > volume_highest[1] and close > ta.sma(close, input_trendline_legnth) and strategy.opentrades == 0 and input_order_direction != "Short"
+    strategy.entry("Long", strategy.long)
+    long_sl := close * (1 - input_sl / 100)
+    long_tp := close * (1 + input_tp / 100)
+    if enable_sl
+        strategy.exit("Long SL", from_entry="Long", stop=long_sl, comment = "SL")
+    if enable_tp
+        strategy.exit("Long TP", from_entry="Long", limit = long_tp, comment = "TP")
+    line.new(bar_index[input_price_breakout_period], price_highest[1], bar_index, price_highest[1], color = #9cff87, width = 2)
+    label.new(bar_index, low, "🟢 Breakout Buy", style = label.style_label_up, color = #9cff87)
+
+// Short Orders
+if close < price_lowest[1] and volume > volume_highest[1] and close < ta.sma(close, input_trendline_legnth) and strategy.opentrades == 0 and input_order_direction != "Long"
+    strategy.entry("Short", strategy.short)
+    short_sl := close * (1 + input_sl / 100)
+    short_tp := close * (1 - input_tp / 100)
+    if enable_sl
+        strategy.exit("Short SL", from_entry="Short", stop=short_sl, comment = "SL")
+    if enable_tp
+        strategy.exit("Short TP", from_entry="Short", limit = short_tp, comment = "TP")
+    line.new(bar_index[input_price_breakout_period], price_lowest[1], bar_index, price_lowest[1], color = #f9396a, width = 2)
+    label.new(bar_index, high, "🔴 Breakout Sell", style = label.style_label_down, color = #f9396a, textcolor = color.white)
+
+// Close Long when price is below moving average for 5 consecutive days
+if strategy.position_size > 0 and close < ta.sma(close, input_trendline_legnth) and close[1] < ta.sma(close, input_trendline_legnth) and close[2] < ta.sma(close, input_trendline_legnth) and close[3] < ta.sma(close, input_trendline_legnth) and close[4] < ta.sma(close, input_trendline_legnth)
+    strategy.close("Long")
+    label.new(bar_index, high, "🔴 Close Position", style = label.style_label_down, color = #f9396a, textcolor = color.white)
+
+// Close Short when price is above moving average for 5 consecutive days
+if strategy.position_size < 0 and close > ta.sma(close, input_trendline_legnth) and close[1] > ta.sma(close, input_trendline_legnth) and close[2] > ta.sma(close, input_trendline_legnth) and close[3] > ta.sma(close, input_trendline_legnth) and close[4] > ta.sma(close, input_trendline_legnth)
+    strategy.close("Short")
+    label.new(bar_index, low, "🟢 Close Position", style = label.style_label_up, color = #9cff87)
+
+plot(ta.sma(close, input_trendline_legnth), color = color.white, linewidth = 2)
+plotcandle(open, high, low, close, title='Candles', color = (close > ta.sma(close, input_trendline_legnth) ? #9cff87 : #f9396a), wickcolor=(close > ta.sma(close, input_trendline_legnth) ? #9cff87 : #f9396a), force_overlay = true)
